@@ -4,13 +4,14 @@
 import sys
 import yaml
 import roslib
-roslib.load_manifest("ps4eye"); 
+roslib.load_manifest("ps4eye");
 from sensor_msgs.msg import CameraInfo
+from sensor_msgs.srv import SetCameraInfo, SetCameraInfoResponse
 import rospy
 import rospkg
 
-class CameraInfoPublisher: 
-# Callback of the ROS subscriber. 
+class CameraInfoPublisher:
+# Callback of the ROS subscriber.
     def callback(self, data):
         left_cam_info_org = data
         right_cam_info_org = data
@@ -33,8 +34,18 @@ class CameraInfoPublisher:
         rospy.Subscriber("/null/left/camera_info", CameraInfo, self.callback)
         rospy.Subscriber("/null/right/camera_info", CameraInfo, self.callback)
 
-        self.left_pub = rospy.Publisher(left_topic,CameraInfo) 
-        self.right_pub = rospy.Publisher(right_topic,CameraInfo) 
+        # camera_infoの更新用
+        self.left_camer_info_srv = rospy.Service(
+            "/" + camera_name + "/left/set_camera_info",
+            SetCameraInfo,
+            self.left_set_camera_info)
+        self.right_camer_info_srv = rospy.Service(
+            "/" + camera_name + "/right/set_camera_info",
+            SetCameraInfo,
+            self.right_set_camera_info)
+
+        self.left_pub = rospy.Publisher(left_topic,CameraInfo)
+        self.right_pub = rospy.Publisher(right_topic,CameraInfo)
 
     def publish(self):
         '''
@@ -42,8 +53,16 @@ class CameraInfoPublisher:
         self.left_cam_info.header.stamp = now
         self.right_cam_info.header.stamp = now
         '''
-        self.left_pub.publish(self.left_cam_info)  
+        self.left_pub.publish(self.left_cam_info)
         self.right_pub.publish(self.right_cam_info)
+
+    def left_set_camera_info(self, req):
+        self.left_cam_info = req.camera_info
+        return SetCameraInfoResponse(True, 'success')
+
+    def right_set_camera_info(self, req):
+        self.right_cam_info = req.camera_info
+        return SetCameraInfoResponse(True, 'success')
 
 def parse_yaml(filename):
     stream = file(filename, 'r')
@@ -63,10 +82,10 @@ def parse_yaml(filename):
     cam_info.roi.height = calib_data['roi']['height']
     cam_info.roi.width = calib_data['roi']['width']
     cam_info.roi.do_rectify = calib_data['roi']['do_rectify']
-    
+
     return cam_info
 
-if __name__ == '__main__': 
+if __name__ == '__main__':
     argv = rospy.myargv(sys.argv)
     rospy.init_node("camera_info_publisher")
     rospack = rospkg.RosPack()
